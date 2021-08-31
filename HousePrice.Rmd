@@ -1,0 +1,239 @@
+---
+author: "Michelle Suhendra and Benson Wainaina"
+title: "R Notebook"
+output: html_document
+---
+
+# Research Question
+
+This project aims to discover what time of the year affects the demand of hotel rooms. When is the best time of the year to book a hotel room? What the optimum number of days of stay to get the best prices on one’s hotel booking. The results of this project can be translated to help inform consumer decisions in terms of hotel bookings. Additionally, we will use data to determine how other factors such as perceived cleanliness, staff, security and the value for money. Similarly, we will explore similar metrics for hostels in Japan - what factors affect hostel ratings as well as price?
+
+# Data Source
+
+### First Data Source: Hotel Bookings
+
+##### Where did you find them? 
+The data set was found from Kaggle. (https://www.kaggle.com/jessemostipak/hotel-booking-demand)
+
+##### Who collected/maintains them? 
+The data is originally from the article Hotel Booking Demand Datasets, written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019.
+
+##### When & Why were they originally collected? 
+The data was collected in 2019 and was done to analyse hotel booking demand. 
+
+##### What does a case represent in each data source, and how many total cases are available?
+A case in the hotel booking data set represents one booking reservation and the variables include the date of arrival, average daily rate, length of stay, origin of booker, booker channel among other things. There are 119,390 total cases in this data set. 
+
+##### What are some of the variables that you plan to use?
+In the first data set (hotel booking demand), we plan to use the average daily rate, length of stay and date of arrival.  
+
+### Second Data Source: Hostel Bookings
+
+##### Where did you find them? 
+The data set was found on Kaggle (https://www.kaggle.com/koki25ando/hostel-world-dataset).
+
+##### Who collected/maintains them? 
+The data set was collected by a user on Kaggle, Andy Il.
+
+##### When & Why were they originally collected?
+The data was collected in 2018 and was used to analyse over 300 hotels in Japan. The data was originally scraped from HostelWorld.com. The data was prepared for the use of foreign tourists who were planning to visit Japan in the 2020 Olympics, to decide on the best place to stay in Japan. 
+
+##### What does a case represent in each data source, and how many total cases are available?
+A case represents  an individual hotel based variables such as price, star rating and distance from city centre. among others. There are 342 cases in this dataset. 
+
+##### What are some of the variables that you plan to use? 
+
+In the second data set, we plan to use distance, cleanliness and price for our analysis.
+
+
+```{r message=FALSE, warning=FALSE}
+library(DataComputing)
+library(mosaicData)
+library(party)
+HostelBookings <- read.csv(file = "Hostel.csv")
+HotelBookings <- read.csv(file = "hotel_bookings.csv")
+head(HotelBookings)
+head(HostelBookings)
+```
+
+# First Dataset EDA
+
+### When is the best time of year to book a hotel room?
+
+Out of all the months, the highest average daily rate is in August and the lowest average daily rate is in January. The average daily rate in August is twice as much as that in January. 
+
+The range of monthly average daily rates of each month is shown in the boxplot below, faceted by hotel type. Arranging the x-axis in chronological order, the boxplot shows that the monthly average daily rate increases in the middle of the year and decreases again towards the end of the year. This sharp peak in the average daily rate is much larger Resort Hotels.  
+```{r message=FALSE, warning=FALSE}
+MonthADR <-
+HotelBookings %>%
+  group_by(arrival_date_month) %>%
+  summarise(monthave = mean(adr)) %>%
+  arrange(desc(monthave)) 
+head(MonthADR)
+HotelBookings %>%
+  filter(adr < 2000) %>% #remove outlier
+  ggplot(aes(x=factor(arrival_date_month,levels=month.name), y = adr)) +
+  geom_boxplot(aes(color = arrival_date_month, fill = arrival_date_month), 
+               alpha = 0.25, outlier.size = 1, outlier.colour = "gray") +
+  xlab("Month") + 
+  ylab("Monthly Average Daily Rate") + 
+  facet_wrap(~hotel) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+### How does demand of hotel booking affect average daily rate?
+The highest number of bookinds are made for arrivals in August, July and May, while the lowest is in January, December. Thus, the peak reservations are in the summer months, while there is a smaller number of bookings made in the winter months.  
+
+The number of reservations was plotted against the monthly average daily rate. The graph shows that there is a linear correlation between the demand (number of reservations) and the price charged.
+```{r message=FALSE, warning=FALSE}
+MonthReservation <-
+HotelBookings %>%
+  group_by(arrival_date_month) %>%
+  summarise(reservation_num = n()) %>%
+  arrange(desc(reservation_num))
+head(MonthReservation)
+MonthADR %>%
+  left_join(MonthReservation, by = c("arrival_date_month" = "arrival_date_month")) %>%
+  ggplot(aes(x = reservation_num, y = monthave)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+  
+```
+
+
+### Does the type of hotel change this trend?
+
+The monthly average daily rate was plotted against the number of reservations in that month and faceted by the hotel type. The graph shows that the monthly average daily rate increases more significantly as the number of reservations increases in resort hotels compared to city hotels. This suggests that resort hotel prices fluctuate more and to a larger degree in terms of price compared to city hotels.
+
+```{r message=FALSE, warning=FALSE}
+MonthADRHotel <-
+HotelBookings %>%
+  group_by(hotel,arrival_date_month) %>%
+  summarise(monthave = mean(adr)) 
+head(MonthADRHotel)
+MonthResHotel <-
+HotelBookings %>%
+  group_by(hotel,arrival_date_month) %>%
+  summarise(reservation_num = n()) 
+head(MonthResHotel)
+MonthADRHotel %>%
+  left_join(MonthResHotel, by = c("arrival_date_month" = "arrival_date_month", "hotel"="hotel")) %>%
+  ggplot(aes(x = reservation_num, y = monthave)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~hotel)
+```
+
+
+### What is the optimal length of stay to get the best daily rate?
+
+There is no clear trend as to the optimal length of stay to get the best daily rate.
+
+```{r message=FALSE, warning=FALSE}
+HotelBookings <- 
+  HotelBookings %>%
+  mutate(arrivaldate = paste(arrival_date_year,arrival_date_month,arrival_date_week_number, sep = '-')) %>%
+  mutate(totalstay = stays_in_weekend_nights + stays_in_week_nights)
+HotelBookings %>%
+  filter(adr <2000) %>% #to remove outliers
+  filter(arrival_date_month == "August") %>%
+  ggplot(aes(x = totalstay, y = adr)) + #color = arrival_date_month
+  geom_point(alpha = 0.1, position = "jitter") +
+  #geom_smooth() +
+  facet_wrap(~hotel)
+```
+# Second Dataset EDA
+
+### Where are the hostels located in Japan?
+
+```{r message=FALSE, warning=FALSE}
+library(rworldmap)
+newmap <- getMap(resolution = "low")
+plot(newmap, xlim = c(130,140), ylim = c(30,45), asp = 1)
+points(HostelBookings$lon, HostelBookings$lat, col = "red", cex = 0.4, labelCountries())
+```
+
+### Does hostel cleanliness affect price?
+Hotel appearance was plotted based on cleanliness agaist value for money and as per the graph there seems to be a linear dependacy between the two. This claim supports the intial assumption we had for does the type of hotel determine the price paid.
+```{r message=FALSE, warning=FALSE}
+HostelAppear<-
+  HostelBookings%>%
+  group_by(hostel.name,valueformoney,cleanliness)%>%
+  summarise(hotel.name=n())
+head(HostelAppear)
+HostelAppear%>%
+  ggplot(aes(y=valueformoney,x=cleanliness))+
+  geom_point()+
+  geom_smooth(method="lm")
+```
+
+### Does the distance form the city centre have an effect on price? How does this change by city?
+The first graph shows the relationship between the distance from the city centre and the price of the hostel. This graph suggests that there is no relationship between the two factors. 
+
+```{r message=FALSE, warning=FALSE}
+HostelBookings <-
+  HostelBookings %>%
+  mutate(distfromcentre = as.numeric(gsub(pattern = "km from city centre", replacement = "", Distance)))
+HostelBookings %>%
+  filter(price.from < 250000) %>%
+  filter(distfromcentre <20) %>% #to remove hostels that are more than 20km outside the city centre
+  ggplot(aes(x = distfromcentre, y = price.from)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  xlab("Distance from city centre (km)") + ylab("Price")
+```
+
+However, upon separating the first graph into individual cities with a facet, the second graph shows that this relationship varies by city. In Tokyo and Osaka, as the hostel gets further away from the city centre, the price of the stay decreases. This is what would be expected of large metropolitan cities. On the other, neither Fukuoka-City, Hiroshima nor Kyoto show does trend.
+
+```{r message=FALSE, warning=FALSE}
+HostelBookings %>%
+  filter(price.from < 250000) %>%
+  filter(distfromcentre <20) %>% #to remove hostels that are more than 20km outside the city centre
+  ggplot(aes(x = distfromcentre, y = price.from)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_wrap(~City) +
+  xlab("Distance from city centre (km)") + ylab("Price")
+```
+
+
+
+### Which hostel variable has the largest effect on its rating band?
+
+First, we determined the distribution of rating bands in this hostel data set. The data fram below shows the largest rating group is that of "Superb", making up 52% of the hostels listed.
+```{r message=FALSE, warning=FALSE}
+HostelBookings %>%
+  group_by(rating.band) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+Next, we transformed the data set from wide data form to narrow form. This rearrangement ascribed the variables of atmosphere, cleanliness, facilities, location, security and staff under the variable name attribute. The corresponding values associated with these attributes were added the the variable "value". This narrow data was then used to generate a boxplot, faceted by the different attributes and their values. 
+
+The boxplot shows that there are significant differences in each rating band for the attributes listed. Atmosphere, cleanliness, facilities, location, security and staff all play a role in determining the rating band of the hostel. 
+
+```{r message=FALSE, warning=FALSE}
+library(tidyr)
+NarrowHostelBookings <-
+HostelBookings %>%
+  gather(key = attribute, value = value, atmosphere, cleanliness, facilities, location.y, security, staff)
+NarrowHostelBookings %>%
+  filter(rating.band != "Rating") %>% #this removes ratings called "Rating" and NA values
+  ggplot(aes(x = reorder(rating.band, summary.score), y = value, color = rating.band)) +
+  geom_boxplot() +
+  facet_wrap(~attribute) +
+  theme(legend.position = "top") +
+  xlab("Hostel Rating") + ylab("Value") 
+```
+
+
+We then explored factors that may impact price. It was found that a facility rating of less than 7.9 was likely to have a price of 1961 while higher than 7.9 had a price of 2217. 
+
+```{r}
+CompleteCases <- 
+  HostelBookings %>%
+  filter(price.from < 3000) %>%
+  select(price.from, summary.score, cleanliness, facilities, location.y) %>%
+  na.omit() 
+mod1 <- party::ctree(price.from ~ facilities + location.y, data = CompleteCases)
+plot(mod1, type = "simple")
+```
